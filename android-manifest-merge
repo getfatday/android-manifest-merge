@@ -1,0 +1,67 @@
+#! /bin/bash
+
+XSLTPROC=${XSLTPROC-$(which xsltproc)}
+DEFAULT_AMM_XSLTDOC=$(dirname $0)/merge.xsl
+AMM_XSLTDOC=${AMM_XSLTDOC-$DEFAULT_AMM_XSLTDOC}
+tmpdir=""
+output=""
+xslt="$AMM_XSLTDOC"
+target=""
+scriptname=`basename $0`
+
+setup () {
+	# Make temporary directory
+	[ -z ${tmpdir} ] && 
+	tmpdir=`mktemp -q -d /tmp/${scriptname}.XXXX`
+	target=${tmpdir}/target.xml
+	output=${tmpdir}/output.xml
+}
+
+teardown () {
+	[ ! -z ${tmpdir} ] &&
+		rm -fdr ${tmpdir}
+}
+
+usage() {
+cat << EOF
+usage: ${scriptname} file [file [...]]
+
+This script is used to merge AndroidManifest.xml files. Files are 
+merged in the order they are receieved
+EOF
+}
+
+fatal() {
+	echo "$1" 1>&2
+        usage
+        exit 1
+}
+
+#Check that xsltproc has been located
+[ -z "$XSLTPROC" -o ! -x "$XSLTPROC" ] &&
+	fatal "$XSLTPROC ${scriptname}: Can not local or access xsltpr
+oc, exiting..."
+
+
+#Check that at least one manifest was passed
+[ -z "$1" ] &&
+	fatal "${scriptname}: Missing argument, exiting..." 
+
+setup
+while [ $# -gt 0 ]; do
+	if [ -f "${target}" ]; then
+		$XSLTPROC --stringparam target "${target}" ${xslt} $1 
+> ${output} ||
+		exit 1
+	else
+		cat $1 > ${output}   
+	fi
+	# Setup next target
+	cp ${output} ${target}
+	shift
+done
+
+# Output contents of final xml
+cat ${output}
+
+teardown
